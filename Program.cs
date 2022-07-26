@@ -12,68 +12,50 @@ namespace ProjectFolderManager
         static readonly string Temp = ProjectFolder + "\\" + "Temp";
         static readonly string temp = ProjectFolder + "\\" + "temp";
 
-        static readonly string[] commands = { "del", "cat", "repeat", "end" };
+        static readonly string[] commands = { "end", "del", "cat", "repeat", "help"};
+        static Dictionary<int, string> projectFolders;
 
-        static Dictionary<int, string> subjectToDeletion;
         static void Main()
         {
             Console.WriteLine("Project folder: " + ProjectFolder);
             Console.WriteLine("\tProjects: ");
 
+            int i = 0;
+            projectFolders = Directory.GetDirectories(ProjectFolder).ToDictionary(x => i++);
 
-            var dirs = Directory.GetDirectories(ProjectFolder).AsEnumerable<string>();
-            foreach (string s in dirs)
+            ConsoleColor defaultClsColor = Console.BackgroundColor;
+            foreach ((int o, string s) in projectFolders)
             {
-                Console.WriteLine("\t\t" + s);
+                Console.BackgroundColor = defaultClsColor;
+                if (s.Contains(Temp) || s.Contains(temp))
+                {
+                    Console.BackgroundColor = ConsoleColor.Red;
+                }
+                Console.WriteLine(o + "\t\t" + s);
             }
-
-            Console.WriteLine();
-            Console.WriteLine("\tSubject to deletion: ");
-
-            int num = 0;
-            subjectToDeletion = (from dir in dirs
-                                     where dir.StartsWith(Temp) || dir.StartsWith(temp)
-                                     select dir).ToDictionary(dir => ++num);
-
-            foreach ((int key, string s) in subjectToDeletion)
-                Console.WriteLine(key + "\t\t" + s);
+            Console.BackgroundColor = defaultClsColor;
             Console.WriteLine();
 
-            Repeat(() => IssueCommand(ReadCommand()));
-            
+            bool repeat = true;
+            do
+            {
+                IssueCommand(ReadCommand(), out repeat);
+            } while (repeat);
         }
 
-        private static void Repeat(Action repeated)
-        {
-        START:
-            repeated();
-
-#if BLABBER
-        ASKAGAIN:
-            Console.WriteLine("Continue? [y/n]");
-            string answer = Console.ReadLine();
-            if (answer.StartsWith("y"))
-                goto START;
-            else if (answer.StartsWith("n"))
-                return;
-            else
-                goto ASKAGAIN;
-#endif
-#if !BLABBER
-        goto START;
-#endif
-
-        }
-        private static void IssueCommand(string command)
+        private static void IssueCommand(string command, out bool repeat)
         {
             if (command.Equals("end"))
+            { 
+                repeat = false;
                 return;
+            }
             else if (command.StartsWith("del"))
             {
                 try
                 {
                     int key = Convert.ToInt32(command.Substring(3));
-                    DeleteDirectory(subjectToDeletion[key], key);
+                    DeleteDirectory(key, projectFolders[key]);
                 }
                 catch
                 {
@@ -82,7 +64,7 @@ namespace ProjectFolderManager
             }
             else if (command.StartsWith("cat"))
             {
-                string path = subjectToDeletion[Convert.ToInt32(command.Substring(3))];
+                string path = projectFolders[Convert.ToInt32(command.Substring(3))];
                 string file = Find(path);
 
                 using FileStream fs = new FileStream(path + "\\" + file, FileMode.Open);
@@ -93,8 +75,18 @@ namespace ProjectFolderManager
             }
             else if (command.StartsWith("repeat"))
             {
-                foreach ((int key, string s) in subjectToDeletion)
-                    Console.WriteLine(key + "\t\t" + s);
+                ConsoleColor defaultClsColor = Console.BackgroundColor;
+                foreach ((int o, string s) in projectFolders)
+                {
+                    Console.BackgroundColor = defaultClsColor;
+                    if (s.Contains(Temp) || s.Contains(temp))
+                    {
+                        Console.BackgroundColor = ConsoleColor.Red;
+                    }
+                    Console.WriteLine(o + "\t\t" + s);
+                }
+                Console.BackgroundColor = defaultClsColor;
+                Console.WriteLine();
             }
             else if (command.StartsWith("help"))
             {
@@ -103,7 +95,9 @@ namespace ProjectFolderManager
                     Console.WriteLine("\t" + cmd);
                 }
             }
-            
+
+            repeat = true;
+            return;
         }
         private static string ReadCommand()
         {
@@ -121,7 +115,7 @@ namespace ProjectFolderManager
                          where _path.EndsWith(extension)
                          select _path).ToHashSet();
 
-            string? s = "";
+            string s = "";
 
             if (query.Contains("Form1.cs"))
                 query.TryGetValue("Form1.cs", out s);
@@ -143,13 +137,13 @@ namespace ProjectFolderManager
             }
             return paths;
         }
-        private static bool DeleteDirectory(string path, int dictKey, bool deleteRecursively = true, bool logDeletion = true)
+        private static bool DeleteDirectory(int key, string path, bool deleteRecursively = true, bool logDeletion = true)
         {
             try
             {
                 FileSystem.DeleteDirectory(path, recycle: RecycleOption.SendToRecycleBin, showUI: UIOption.OnlyErrorDialogs);
                 //Directory.Delete(path, deleteRecursively);
-                subjectToDeletion.Remove(dictKey);
+                projectFolders.Remove(key);
                 if (logDeletion)
                     Console.WriteLine("Successfully removed " + path);
                 return true;
